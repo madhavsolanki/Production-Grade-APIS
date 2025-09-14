@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 dotenv.config();
 import express from "express";
 import { connectDB } from "./config/db_connection.config.js";
+import authRoutes from "./routes/auth.routes.js";
 
 
 
@@ -15,6 +16,11 @@ app.use(express.json()); // parse JSON Bodies
 app.get("/", (req, res) => {
   return res.json({ success: true, message: "Server is Up and Runnig fine" });
 });
+
+
+// My APIS
+app.use("/api/auth", authRoutes);
+
 
 const PORT = process.env.PORT || 5000;
 
