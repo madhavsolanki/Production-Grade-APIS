@@ -1,7 +1,7 @@
 import { User } from "../models/user.models.js";
 import jwt from "jsonwebtoken";
 import { hashPassword, comparePassword } from "../utils/hash.js";
-import { generateAccessToken, generateRefreshToken } from "../utils/jwt.js";
+import { generateAccessToken, generateRefreshToken, verifyToken } from "../utils/jwt.js";
 import { sendsResponse } from "../utils/response.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
@@ -14,7 +14,7 @@ export const registerUser = asyncHandler(async (req, res) => {
   if (!fullName || !email || !password) {
     return res
       .status(400)
-      .json(sendsResponse(res, 400, false, "All fields are required"));
+      .json(sendsResponse( 400, false, "All fields are required"));
   }
 
   // Check if the user already exists
@@ -22,7 +22,7 @@ export const registerUser = asyncHandler(async (req, res) => {
   if (existingUser) {
     return res
       .status(409)
-      .json(sendsResponse(res, 409, false, "Email is already in use"));
+      .json(sendsResponse( 409, false, "Email is already in use"));
   }
 
   // Hash password
@@ -40,7 +40,6 @@ export const registerUser = asyncHandler(async (req, res) => {
     .status(201)
     .json(
       sendsResponse(
-        res,
         201,
         true,
         "User registered succcessfully. Please login"
@@ -57,7 +56,7 @@ export const loginUser = asyncHandler(async (req, res) => {
   if (!email || !password) {
     return res
       .status(400)
-      .json(sendsResponse(res, 400, false, "Email and password are required"));
+      .json(sendsResponse(400, false, "Email and password are required"));
   }
 
   // Find User already exists or not
@@ -65,7 +64,7 @@ export const loginUser = asyncHandler(async (req, res) => {
   if (!user) {
     return res
       .status(401)
-      .json(sendsResponse(res, 401, false, "Invalid credentials"));
+      .json(sendsResponse(401, false, "Invalid credentials"));
   }
 
   // Compare Password
@@ -73,7 +72,7 @@ export const loginUser = asyncHandler(async (req, res) => {
   if (!isMatch) {
     return res
       .status(401)
-      .json(sendsResponse(res, 401, false, "Invalid credentials"));
+      .json(sendsResponse(401, false, "Invalid credentials"));
   }
 
   // Check if active
@@ -81,21 +80,21 @@ export const loginUser = asyncHandler(async (req, res) => {
     return res
       .status(403)
       .json(
-        sendsResponse(res, 403, false, "Account is deactivated. Contact admin.")
+        sendsResponse(403, false, "Account is deactivated. Contact admin.")
       );
   }
 
   // Generate tokens
-  const accessToken = generateAccessToken({ id: user._id, role: user.role });
+  const accessToken = generateAccessToken( user._id, user.role );
   const refreshToken = generateRefreshToken(user._id);
 
-  // Stores user's token in DB 
+  // Stores user's token in DB
   user.refreshTokens.push(refreshToken);
   await user.save();
 
   // return response
   return res.status(200).json(
-    sendsResponse(res, 200, true, "Logged in successfully" ,{
+    sendsResponse( 200, true, "Logged in successfully", {
       user: {
         id: user._id,
         fullName: user.fullName,
@@ -112,21 +111,22 @@ export const loginUser = asyncHandler(async (req, res) => {
 
 // Logout from Single device
 export const logoutUser = asyncHandler(async (req, res) => {
-  
-  const { refreshToken } = req.body
+  const { refreshToken } = req.body;
 
-  // chek if refrsh token is provided 
-  if(!refreshToken){
-    return res.status(400)
-    .json(sendsResponse(res, 400, false, "Refresh token is required"));
+  // chek if refrsh token is provided
+  if (!refreshToken) {
+    return res
+      .status(400)
+      .json(sendsResponse( 400, false, "Refresh token is required"));
   }
 
-  // Find user with this refresh token 
-  const user = await User.findOne({refreshTokens: refreshToken});
+  // Find user with this refresh token
+  const user = await User.findOne({ refreshTokens: refreshToken });
 
-  if(!user){
-    res.status(401)
-    .json(sendsResponse(res, 401, false, "Invalid refresh token"));
+  if (!user) {
+    res
+      .status(401)
+      .json(sendsResponse(401, false, "Invalid refresh token"));
   }
 
   // Remmove only this refresh token user's refresh tokens array
@@ -138,41 +138,117 @@ export const logoutUser = asyncHandler(async (req, res) => {
 
   return res
     .status(200)
-    .json(sendsResponse(res, 200, true, "Logged out successfully"));
+    .json(sendsResponse( 200, true, "Logged out successfully"));
 });
 
 // Logout User form all devices
 export const logoutAllDevices = asyncHandler(async (req, res) => {
-  // Extract access token from headers 
-  const authHeader = req.headers['authorization'];
-  if(!authHeader || !authHeader.startsWith("Bearer ")){
-    return res.status(401).json(sendsResponse(res, 401, false, "Authorization token missing or invalid"));
+  // Extract access token from headers
+  const authHeader = req.headers["authorization"]; 
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res
+      .status(401)
+      .json(
+        sendsResponse( 401, false, "Authorization token missing or invalid")
+      );
   }
 
   const token = authHeader.split(" ")[1];
 
-  // Verify token 
+  // Verify token
   let decoded;
   try {
-     decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
-     
+    decoded = verifyToken(token, process.env.JWT_ACCESS_SECRET);
+    console.log(decoded);
+    
   } catch (error) {
-    return res.status(403).json({ message: "Invalid or expired access token" });
+  console.log(error);
+  
+   return res
+      .status(403)
+      .json(sendsResponse(403, false, "Invalid or expired access token"));
   }
 
- // Handle payload shape (either string or object)
-  const userId = decoded.id?.id || decoded.id;
+  // Handle payload shape (either string or object)
+  // const userId = decoded.id?.id || decoded.id;
+  const userId =  decoded.id;
 
   // Find the user
   const user = await User.findById(userId);
-  if(!user){
-    return res.status(404).json({message:"User not found"});
+  if (!user) {
+    return res.status(404).json({ message: "User not found" });
   }
 
-  // clear all refresh tokens 
+  // clear all refresh tokens
   user.refreshTokens = [];
   await user.save();
 
-  return res.status(200).json(sendsResponse(res, 200, true, "Logout from all devices successfully"))
+  return res
+    .status(200)
+    .json(
+      sendsResponse(200, true, "Logout from all devices successfully")
+    );
+});
 
-}); 
+// Generate a new access + refresh token pair using an existing refresh token
+export const refreshAccesstToken = asyncHandler(async (req, res) => {
+  // Extract refresh token from the request body
+  const { refreshToken } = req.body;
+
+  if (!refreshToken) {
+    return res
+      .status(400)
+      .json(sendsResponse(400, false, "Refresh token is required"));
+  }
+
+  let decoded;
+  try {
+    // verify the refresh token using REFRESH secret
+    decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+  } catch (error) {
+    return res
+      .status(401)
+      .json(sendsResponse(403, false, "Invalid or expired refresh token"));
+  }
+
+  // Find User in DB
+  const user = await User.findById(decoded.id);
+  if (!user) {
+    return res
+      .status(404)
+      .json(sendsResponse(404, false, "User not found"));
+  }
+
+  // Ensure refresh token exists in DB for this user
+  if (!user.refreshTokens.includes(refreshToken)) {
+    return res
+      .status(403)
+      .json(
+        sendsResponse(
+          403,
+          false,
+          "Refresh token not recognized, please login again"
+        )
+      );
+  }
+
+  // Generate new tokens
+  const newAccessToken = generateAccessToken(user._id, user.role);
+  const newRefreshToken = generateRefreshToken(user._id);
+
+  // Rotate refresh token: removes old , add new
+  user.refreshTokens = user.refreshTokens.filter((t) => t != refreshToken);
+  user.refreshTokens.push(newRefreshToken);
+  await user.save();
+
+  // sends response back
+  return res.status(200).json(
+    sendsResponse(200, true, "New access token gnerated successfully", {
+      tokens: {
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
+      },
+    })
+  );
+});
+
