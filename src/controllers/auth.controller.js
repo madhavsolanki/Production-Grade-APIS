@@ -61,6 +61,12 @@ export const loginUser = asyncHandler(async (req, res) => {
 
   // Find User already exists or not
   const user = await User.findOne({ email });
+
+  if(user && !user.isActive){
+    return res.status(402)
+      .json(sendsResponse(402, false, "You deleted your account. please contact to admin for recover"));
+  }
+
   if (!user) {
     return res
       .status(401)
@@ -159,11 +165,7 @@ export const logoutAllDevices = asyncHandler(async (req, res) => {
   let decoded;
   try {
     decoded = verifyToken(token, process.env.JWT_ACCESS_SECRET);
-    console.log(decoded);
-    
   } catch (error) {
-  console.log(error);
-  
    return res
       .status(403)
       .json(sendsResponse(403, false, "Invalid or expired access token"));
